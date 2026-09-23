@@ -16,6 +16,11 @@ class FieldCipher
   TAG_LENGTH = 16
   HEX_KEY_LENGTH = 64
 
+  # Valores de ejemplo de `.env.example`. Si alguien despliega copiando la
+  # plantilla sin generar claves, el cifrado seria reversible por cualquiera:
+  # es mejor fallar ruidosamente que proteger los datos con una clave conocida.
+  PLACEHOLDER_KEYS = [("0" * HEX_KEY_LENGTH), ("f" * HEX_KEY_LENGTH)].freeze
+
   class << self
     def encrypt(plaintext)
       return nil if blank?(plaintext)
@@ -77,18 +82,21 @@ class FieldCipher
     end
 
     def encryption_key
-      hex = ENV["KUBO_FIELD_ENCRYPTION_KEY"].to_s
-      if hex.length != HEX_KEY_LENGTH
-        raise ArgumentError, "KUBO_FIELD_ENCRYPTION_KEY debe ser hexadecimal de 32 bytes (64 caracteres)"
-      end
-
-      [hex].pack("H*")
+      read_key("KUBO_FIELD_ENCRYPTION_KEY")
     end
 
     def blind_index_key
-      hex = ENV["KUBO_BLIND_INDEX_KEY"].to_s
+      read_key("KUBO_BLIND_INDEX_KEY")
+    end
+
+    def read_key(variable)
+      hex = ENV[variable].to_s
       if hex.length != HEX_KEY_LENGTH
-        raise ArgumentError, "KUBO_BLIND_INDEX_KEY debe ser hexadecimal de 32 bytes (64 caracteres)"
+        raise ArgumentError, "#{variable} debe ser hexadecimal de 32 bytes (64 caracteres)"
+      end
+      if PLACEHOLDER_KEYS.include?(hex.downcase)
+        raise ArgumentError,
+              "#{variable} conserva el valor de ejemplo; genere una clave real con: openssl rand -hex 32"
       end
 
       [hex].pack("H*")

@@ -37,12 +37,33 @@ class FieldCipherTest < Minitest::Test
   end
 
   def test_enmascarado_muestra_solo_los_ultimos_tres
-    assert_equal "******432", FieldCipher.mask("1098765432")
+    # El enmascarado conserva la longitud del valor original.
+    assert_equal "*******432", FieldCipher.mask("1098765432")
     assert_equal "***", FieldCipher.mask("123")
+    assert_equal "*****321", FieldCipher.mask("87654321")
   end
 
   def test_valores_vacios_no_se_cifran
     assert_nil FieldCipher.encrypt("")
     assert_nil FieldCipher.decrypt(nil)
+  end
+
+  def test_rechaza_la_clave_de_ejemplo
+    original = ENV["KUBO_FIELD_ENCRYPTION_KEY"]
+    ENV["KUBO_FIELD_ENCRYPTION_KEY"] = "0" * 64
+
+    error = assert_raises(ArgumentError) { FieldCipher.encrypt("1098765432") }
+    assert_match(/valor de ejemplo/, error.message)
+  ensure
+    ENV["KUBO_FIELD_ENCRYPTION_KEY"] = original
+  end
+
+  def test_rechaza_una_clave_de_longitud_incorrecta
+    original = ENV["KUBO_FIELD_ENCRYPTION_KEY"]
+    ENV["KUBO_FIELD_ENCRYPTION_KEY"] = "abc"
+
+    assert_raises(ArgumentError) { FieldCipher.encrypt("1098765432") }
+  ensure
+    ENV["KUBO_FIELD_ENCRYPTION_KEY"] = original
   end
 end
