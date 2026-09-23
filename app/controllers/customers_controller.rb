@@ -56,14 +56,39 @@ class CustomersController < ApplicationController
     head :no_content
   end
 
-  # Busqueda por documento exacto usando el indice ciego (sin descifrar).
+  # Busqueda exacta por documento (NIT / cedula).
+  #
+  # Usa el indice ciego: la fila se localiza por el HMAC del documento, sin
+  # descifrar ninguna columna. Es el caso de uso real del mostrador: "el cliente
+  # dice su cedula y hay que encontrarlo".
+  def by_document
+    customer = Customer.find_by_document(current_tenant_id, params[:document])
+
+    if customer.nil?
+      render json: {
+        code: "CUSTOMER_NOT_FOUND",
+        message: "No hay un cliente con ese documento"
+      }, status: :not_found
+    else
+      render json: { data: serialize(customer, reveal: true) }
+    end
+  end
+
+  # Resumen de la cartera: cuantos clientes hay por etapa y cuanto cupo se ha
+  # otorgado. Alimenta el tablero.
+  #
+  # Devuelve el mismo envoltorio `data` que el resto de la API. Sin el, los
+  # clientes que esperan `{data: ...}` leian `undefined` y la tarjeta de cartera
+  # del tablero mostraba ceros sin que nada fallara.
   def stats
     scope = Customer.of_tenant(current_tenant_id)
     render json: {
-      total: scope.count,
-      by_stage: Customer::STAGES.index_with { |stage| scope.where(stage: stage).count },
-      created_last_7_days: scope.where("created_at >= ?", 7.days.ago).count,
-      total_credit_limit: scope.sum(:credit_limit).to_f
+      data: {
+        total: scope.count,
+        by_stage: Customer::STAGES.index_with { |stage| scope.where(stage: stage).count },
+        created_last_7_days: scope.where("created_at >= ?", 7.days.ago).count,
+        total_credit_limit: scope.sum(:credit_limit).to_f
+      }
     }
   end
 
