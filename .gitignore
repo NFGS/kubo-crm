@@ -1,0 +1,10 @@
+/.bundle/
+/log/*
+/tmp/*
+!/log/.keep
+!/tmp/.keep
+/storage/*
+.env
+.env.local
+*.log
+.DS_Store

@@ -1,0 +1,7 @@
+#!/usr/bin/env ruby
+# Punto de entrada de las tareas de Rails (migraciones, consola, servidor).
+# El comando `rails` delega en este archivo cuando existe; sin el, cae en el
+# generador de aplicaciones y las tareas de base de datos nunca se ejecutan.
+APP_PATH = File.expand_path("../config/application", __dir__)
+require_relative "../config/boot"
+require "rails/commands"

@@ -1,0 +1,9 @@
+#!/bin/bash
+set -e
+
+if [ "${KUBO_RUN_MIGRATIONS:-true}" = "true" ]; then
+  echo "[kubo-crm] aplicando migraciones de base de datos"
+  bundle exec rails db:prepare
+fi
+
+exec "$@"
