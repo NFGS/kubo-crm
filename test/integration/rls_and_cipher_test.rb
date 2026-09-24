@@ -57,6 +57,33 @@ class RlsAndCipherTest < ActiveSupport::TestCase
     assert_nil con_negocio(@otro) { Customer.find_by_document(@otro, "1098765432") }
   end
 
+  test "la rotacion re-cifra los valores con la llave nueva (P-29)" do
+    ENV["KUBO_FIELD_ENCRYPTION_KEYS"] = "vieja:#{'a' * 64}"
+    cliente = crear_cliente(@tenant, "1098765432", telefono: "3001234567")
+    viejo = con_negocio(@tenant) { Customer.find(cliente.id).document_number_encrypted }
+
+    assert_equal "vieja", FieldCipher.key_id_of(viejo)
+
+    # Entra la llave nueva al frente; la vieja queda para descifrar.
+    ENV["KUBO_FIELD_ENCRYPTION_KEYS"] = "nueva:#{'b' * 64},vieja:#{'a' * 64}"
+    resumen = FieldKeyRotation.call
+
+    assert_operator resumen[:rotated], :>=, 1
+    assert_equal 0, resumen[:unreadable]
+
+    con_negocio(@tenant) do
+      recargado = Customer.find(cliente.id)
+
+      assert_equal "nueva", FieldCipher.key_id_of(recargado.document_number_encrypted)
+      assert_equal "1098765432", recargado.document_number
+      assert_equal "3001234567", recargado.phone
+      # El indice ciego se recalculo: la busqueda sigue encontrando al cliente.
+      assert_equal recargado.id, Customer.find_by_document(@tenant, "1098765432")&.id
+    end
+  ensure
+    ENV.delete("KUBO_FIELD_ENCRYPTION_KEYS")
+  end
+
   private
 
   def crear_cliente(tenant, documento, telefono: nil)

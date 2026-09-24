@@ -13,6 +13,44 @@ class FieldCipherTest < Minitest::Test
     assert_equal "1098765432", FieldCipher.decrypt(encrypted)
   end
 
+  def test_el_texto_cifrado_dice_con_que_llave_se_escribio
+    cifrado = FieldCipher.encrypt("1098765432")
+
+    assert cifrado.start_with?("v1:"), "el formato lleva la version y la llave"
+    assert_equal "default", FieldCipher.key_id_of(cifrado)
+    assert_equal "default", FieldCipher.current_key_id
+  end
+
+  def test_un_valor_sin_prefijo_se_descifra_con_la_llave_actual
+    # Formato anterior al anillo: base64(iv|tag|ciphertext) sin version.
+    heredado = FieldCipher.encrypt("1098765432").split(":", 3).last
+
+    assert_equal "1098765432", FieldCipher.decrypt(heredado)
+  end
+
+  def test_una_llave_desconocida_no_descifra_nada
+    assert_nil FieldCipher.decrypt("v1:llave-que-no-existe:AAAA")
+  end
+
+  def test_rotar_una_llave_no_pierde_el_valor
+    llave_vieja = "a" * 64
+    llave_nueva = "b" * 64
+
+    ENV["KUBO_FIELD_ENCRYPTION_KEYS"] = "vieja:#{llave_vieja}"
+    cifrado = FieldCipher.encrypt("1098765432")
+    assert_equal "vieja", FieldCipher.key_id_of(cifrado)
+
+    # La llave nueva entra al frente; la vieja queda para descifrar.
+    ENV["KUBO_FIELD_ENCRYPTION_KEYS"] = "nueva:#{llave_nueva},vieja:#{llave_vieja}"
+    assert_equal "1098765432", FieldCipher.decrypt(cifrado), "lo viejo se sigue leyendo"
+
+    reciente = FieldCipher.encrypt("1098765432")
+    assert_equal "nueva", FieldCipher.key_id_of(reciente)
+    assert_equal "1098765432", FieldCipher.decrypt(reciente)
+  ensure
+    ENV.delete("KUBO_FIELD_ENCRYPTION_KEYS")
+  end
+
   def test_dos_cifrados_del_mismo_valor_son_distintos
     first = FieldCipher.encrypt("1098765432")
     second = FieldCipher.encrypt("1098765432")
