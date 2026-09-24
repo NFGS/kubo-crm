@@ -13,11 +13,21 @@ else
     { name: "Ferreteria La 14", email: "contacto@ferreteriala14.co", city: "Calarca", stage: "PROSPECT" }
   ]
 
-  customers.each do |attributes|
-    Customer.find_or_create_by!(tenant_id: tenant_id, name: attributes[:name]) do |customer|
-      customer.email = attributes[:email]
-      customer.city = attributes[:city]
-      customer.stage = attributes[:stage]
+  # La semilla tambien respeta RLS: se fija el tenant de la semilla en la
+  # transaccion, como lo haria una peticion normal.
+  ActiveRecord::Base.transaction do
+    ActiveRecord::Base.connection.execute(
+      ActiveRecord::Base.sanitize_sql_array(
+        ["select set_config('app.tenant_id', ?, true)", tenant_id]
+      )
+    )
+
+    customers.each do |attributes|
+      Customer.find_or_create_by!(tenant_id: tenant_id, name: attributes[:name]) do |customer|
+        customer.email = attributes[:email]
+        customer.city = attributes[:city]
+        customer.stage = attributes[:stage]
+      end
     end
   end
 

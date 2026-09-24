@@ -71,6 +71,9 @@ de manipulación, determinismo del índice ciego y enmascarado.
   cabeceras `X-User-Id` y `X-Tenant-Id`. El servicio solo es alcanzable en la red
   privada de contenedores.
 - **Sin `default_scope`**: el filtro por negocio y por borrado lógico es explícito
-  en cada consulta, para que nunca haya sorpresas ocultas.
+  en cada consulta, para que nunca haya sorpresas ocultas. Como segunda barrera,
+  **RLS está activo con `FORCE`**: el `around_action` de `ApplicationController`
+  fija `app.tenant_id` en una transacción por petición y una consulta sin contexto
+  devuelve cero filas (ADR-0010).
 - **`secret_key_base` nunca en el repositorio**: en producción llega por variable
   de entorno; en desarrollo se genera uno aleatorio por arranque.
