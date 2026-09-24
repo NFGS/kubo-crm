@@ -10,6 +10,11 @@ gem "bootsnap", require: false
 # parseo del cuerpo JSON de las peticiones funcione.
 gem "json", "~> 2.9"
 
+# Trazas OpenTelemetry (P-07): SDK, exportador OTLP e instrumentacion de Rails.
+gem "opentelemetry-sdk"
+gem "opentelemetry-exporter-otlp"
+gem "opentelemetry-instrumentation-rails"
+
 group :development, :test do
   gem "debug", require: false
 end

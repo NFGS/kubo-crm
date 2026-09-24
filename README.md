@@ -77,3 +77,9 @@ de manipulación, determinismo del índice ciego y enmascarado.
   devuelve cero filas (ADR-0010).
 - **`secret_key_base` nunca en el repositorio**: en producción llega por variable
   de entorno; en desarrollo se genera uno aleatorio por arranque.
+
+## Observabilidad (Fase 2)
+
+Trazas OpenTelemetry con `opentelemetry-instrumentation-rails`: el inicializador
+solo se activa si existe `OTEL_EXPORTER_OTLP_ENDPOINT`, de modo que el servicio
+arranca igual sin collector.

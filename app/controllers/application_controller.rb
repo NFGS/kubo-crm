@@ -1,4 +1,8 @@
 class ApplicationController < ActionController::API
+  # Formato de las cabeceras de identidad: un valor malformado no debe llegar a
+  # `set_config('app.tenant_id')`, donde provocaria un error de conversion.
+  UUID_FORMAT = /\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i
+
   # El interceptor de tenant (P-02) envuelve cada accion en una transaccion con
   # `app.tenant_id` fijado: la politica de RLS de PostgreSQL filtra por negocio
   # aunque una consulta olvide el `where`.
@@ -19,7 +23,7 @@ class ApplicationController < ActionController::API
   # terminar y no puede filtrarse a otra peticion que reutilice la conexion.
   def with_tenant_rls(&action)
     tenant = current_tenant_id
-    if tenant.present?
+    if tenant.present? && tenant.match?(UUID_FORMAT)
       ActiveRecord::Base.transaction do
         ActiveRecord::Base.connection.execute(
           ActiveRecord::Base.sanitize_sql_array(
@@ -35,7 +39,17 @@ class ApplicationController < ActionController::API
 
   # La identidad llega ya verificada desde el API Gateway.
   def require_identity
-    return if current_tenant_id.present?
+    tenant = current_tenant_id
+
+    if tenant.present? && !tenant.match?(UUID_FORMAT)
+      render json: {
+        code: "INVALID_TENANT",
+        message: "El negocio indicado no es valido"
+      }, status: :bad_request
+      return
+    end
+
+    return if tenant.present?
 
     render json: {
       code: "UNAUTHENTICATED",

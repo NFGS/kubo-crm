@@ -1,0 +1,11 @@
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
+
+stages: [test]
+
+crm:test:
+  stage: test
+  image: ruby:3.4
+  script:
+    - ruby test/field_cipher_test.rb
