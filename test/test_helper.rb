@@ -11,6 +11,19 @@ ENV["RAILS_ENV"] ||= "test"
 ENV["KUBO_FIELD_ENCRYPTION_KEY"] ||= "a" * 64
 ENV["KUBO_BLIND_INDEX_KEY"] ||= "b" * 64
 
+# Cobertura (P-08): se mide sobre el codigo de la aplicacion y la corrida falla
+# si baja del 80 %. SimpleCov debe arrancar ANTES de cargar el entorno de Rails.
+if ENV.fetch("COVERAGE", "true") == "true"
+  require "simplecov"
+
+  SimpleCov.start do
+    minimum_coverage 80
+    skip "/test/"
+    skip "/config/"
+    skip "/db/"
+  end
+end
+
 require_relative "../config/environment"
 # `rails/test_help` es lo que conecta ActiveSupport::TestCase con ActiveRecord
 # (fixtures y transacciones por prueba); minitest viene incluido con el.

@@ -41,6 +41,59 @@ class CustomersHttpTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "el listado enmascara documento y telefono" do
+    get "/api/v1/customers", headers: { "X-Tenant-Id" => @tenant }
+
+    assert_response :success
+    fila = JSON.parse(response.body)["data"].first
+    assert_equal "*******432", fila["document_number"]
+    assert_equal "*******567", fila["phone"]
+  end
+
+  test "la busqueda por documento usa el indice ciego" do
+    get "/api/v1/customers/by-document/1098765432", headers: { "X-Tenant-Id" => @tenant }
+
+    assert_response :success
+    assert_equal @customer.id, JSON.parse(response.body).dig("data", "id")
+  end
+
+  test "un documento sin cliente responde 404" do
+    get "/api/v1/customers/by-document/0000000000", headers: { "X-Tenant-Id" => @tenant }
+
+    assert_response :not_found
+  end
+
+  test "crear un cliente devuelve el detalle" do
+    post "/api/v1/customers",
+         params: { name: "Cliente Nuevo", stage: "CUSTOMER", document_number: "9988776655" },
+         headers: { "X-Tenant-Id" => @tenant },
+         as: :json
+
+    assert_response :created
+    assert_equal "9988776655", JSON.parse(response.body).dig("data", "document_number")
+  end
+
+  test "el resumen de cartera cuenta los clientes del negocio" do
+    get "/api/v1/customers/stats", headers: { "X-Tenant-Id" => @tenant }
+
+    assert_response :success
+    assert_equal 1, JSON.parse(response.body).dig("data", "total")
+  end
+
+  test "archivar un cliente lo saca del listado" do
+    delete "/api/v1/customers/#{@customer.id}", headers: { "X-Tenant-Id" => @tenant }
+    assert_response :no_content
+
+    get "/api/v1/customers", headers: { "X-Tenant-Id" => @tenant }
+    assert_equal 0, JSON.parse(response.body)["data"].length
+  end
+
+  test "la sonda de salud responde sin identidad" do
+    get "/api/v1/health"
+
+    assert_response :success
+  end
+
   private
 
   def con_negocio(tenant_id)

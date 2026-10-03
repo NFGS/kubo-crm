@@ -17,4 +17,6 @@ gem "opentelemetry-instrumentation-rails"
 
 group :development, :test do
   gem "debug", require: false
+  # Cobertura de las pruebas (P-08): gate de 80 % sobre el codigo de la app.
+  gem "simplecov", require: false
 end
