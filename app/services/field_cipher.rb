@@ -14,7 +14,8 @@ require "base64"
 # re-cifrar los valores poco a poco, sin ventana de indisponibilidad.
 #
 # Formato almacenado: "v1:<key_id>:base64( iv (12 bytes) | tag (16 bytes) | ciphertext )".
-# Un valor sin prefijo (anterior al anillo) se descifra con la llave actual.
+# Un valor sin prefijo (anterior al anillo) se identifica como "default" y se
+# descifra con la llave unica `KUBO_FIELD_ENCRYPTION_KEY`.
 class FieldCipher
   ALGORITHM = "aes-256-gcm"
   IV_LENGTH = 12
@@ -98,13 +99,13 @@ class FieldCipher
     FORMAT = "v1"
 
     # Un valor con prefijo se descifra con la llave que lo escribio; uno sin
-    # prefijo (anterior al anillo) con la llave actual.
+    # prefijo (anterior al anillo) lo escribio la llave unica, "default".
     def split_payload(payload)
       if payload.start_with?("#{FORMAT}:")
         _, key_id, base64 = payload.split(":", 3)
         [key_id, base64]
       else
-        [current_key_id, payload]
+        ["default", payload]
       end
     end
 
@@ -119,12 +120,26 @@ class FieldCipher
       crudo = ENV["KUBO_FIELD_ENCRYPTION_KEYS"].to_s.strip
       return [["default", read_key("KUBO_FIELD_ENCRYPTION_KEY")]] if crudo.empty?
 
-      crudo.split(",").map do |par|
+      pares = crudo.split(",").map do |par|
         key_id, hex = par.split(":", 2)
         raise ArgumentError, "KUBO_FIELD_ENCRYPTION_KEYS debe ser id:hex separado por comas" if hex.nil?
 
         [key_id.strip, parse_key(hex, "KUBO_FIELD_ENCRYPTION_KEYS")]
       end
+
+      # Los valores anteriores al anillo no llevan prefijo y se identifican
+      # como "default": la llave unica sigue disponible para descifrarlos
+      # aunque el anillo ya tenga llaves nuevas, salvo que el anillo la declare.
+      if pares.none? { |id, _material| id == "default" }
+        begin
+          pares << ["default", read_key("KUBO_FIELD_ENCRYPTION_KEY")]
+        rescue ArgumentError
+          # Sin la llave unica (ausente, corta o de ejemplo), los heredados se
+          # reportan ilegibles en la rotacion; nunca se destruyen.
+        end
+      end
+
+      pares
     end
 
     def key_material(key_id)

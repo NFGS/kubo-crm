@@ -104,9 +104,24 @@ class CustomersController < ApplicationController
   def customer_params
     # Acepta el cuerpo plano o envuelto explicitamente en "customer".
     source = params[:customer].presence || params
-    source.permit(
+    permitidos = source.permit(
       :name, :email, :document_number, :phone, :city, :address, :stage, :notes, :credit_limit
     )
+
+    # Defensa: el listado entrega documento y telefono enmascarados; si un
+    # consumidor los reenvia sin cambiarlos, no deben re-cifrarse y pisar el
+    # valor real (la PWA pide el detalle antes de editar; esto cubre a cualquier
+    # otro cliente de la API).
+    %i[document_number phone].each do |campo|
+      permitidos.delete(campo) if masked?(permitidos[campo])
+    end
+
+    permitidos
+  end
+
+  def masked?(value)
+    text = value.to_s
+    text.match?(/\A\*+\z/) || text.match?(/\A\*+.{3}\z/)
   end
 
   def serialize(customer, reveal:)

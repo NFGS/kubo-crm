@@ -21,11 +21,26 @@ class FieldCipherTest < Minitest::Test
     assert_equal "default", FieldCipher.current_key_id
   end
 
-  def test_un_valor_sin_prefijo_se_descifra_con_la_llave_actual
+  def test_un_valor_sin_prefijo_se_descifra_con_la_llave_default
     # Formato anterior al anillo: base64(iv|tag|ciphertext) sin version.
     heredado = FieldCipher.encrypt("1098765432").split(":", 3).last
 
+    assert_equal "default", FieldCipher.key_id_of(heredado)
     assert_equal "1098765432", FieldCipher.decrypt(heredado)
+  end
+
+  def test_un_valor_heredado_se_lee_aunque_el_anillo_tenga_llave_nueva
+    heredado = FieldCipher.encrypt("1098765432").split(":", 3).last
+
+    # La llave nueva entra al frente; la unica (KUBO_FIELD_ENCRYPTION_KEY)
+    # queda disponible como "default" para los valores sin prefijo.
+    ENV["KUBO_FIELD_ENCRYPTION_KEYS"] = "nueva:#{'b' * 64}"
+
+    assert_equal "nueva", FieldCipher.current_key_id
+    assert_equal "default", FieldCipher.key_id_of(heredado)
+    assert_equal "1098765432", FieldCipher.decrypt(heredado), "el heredado no se pierde al rotar"
+  ensure
+    ENV.delete("KUBO_FIELD_ENCRYPTION_KEYS")
   end
 
   def test_una_llave_desconocida_no_descifra_nada

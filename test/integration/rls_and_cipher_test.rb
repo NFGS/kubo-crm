@@ -84,6 +84,63 @@ class RlsAndCipherTest < ActiveSupport::TestCase
     ENV.delete("KUBO_FIELD_ENCRYPTION_KEYS")
   end
 
+  test "la rotacion re-cifra los valores anteriores al anillo (P-29)" do
+    # Valor escrito antes del anillo: sin prefijo, con la llave unica.
+    cliente = crear_cliente(@tenant, "1098765432", telefono: "3001234567")
+    sin_prefijo = con_negocio(@tenant) do
+      fila = Customer.find(cliente.id)
+      {
+        documento: fila.document_number_encrypted.split(":", 3).last,
+        telefono: fila.phone_encrypted.split(":", 3).last
+      }
+    end
+    con_negocio(@tenant) do
+      Customer.find(cliente.id).update_columns(
+        document_number_encrypted: sin_prefijo[:documento],
+        phone_encrypted: sin_prefijo[:telefono]
+      )
+    end
+
+    # La llave nueva entra al frente; la unica sigue disponible como "default"
+    # (KUBO_FIELD_ENCRYPTION_KEY no cambia), de modo que el heredado se puede
+    # descifrar y re-cifrar en vez de quedar ilegible para siempre.
+    ENV["KUBO_FIELD_ENCRYPTION_KEYS"] = "nueva:#{'b' * 64}"
+    resumen = FieldKeyRotation.call
+
+    assert_operator resumen[:rotated], :>=, 1
+    assert_equal 0, resumen[:unreadable]
+
+    con_negocio(@tenant) do
+      recargado = Customer.find(cliente.id)
+
+      assert_equal "nueva", FieldCipher.key_id_of(recargado.document_number_encrypted)
+      assert_equal "1098765432", recargado.document_number
+      assert_equal "3001234567", recargado.phone
+      assert_equal recargado.id, Customer.find_by_document(@tenant, "1098765432")&.id
+    end
+  ensure
+    ENV.delete("KUBO_FIELD_ENCRYPTION_KEYS")
+  end
+
+  test "la rotacion recalcula el indice ciego si cambio su llave (P-29)" do
+    cliente = crear_cliente(@tenant, "1098765432")
+
+    # Cambiar la llave del indice ciego invalida las busquedas por igualdad; la
+    # rotacion lo detecta y vuelve a calcularlo aunque la llave de cifrado no
+    # haya cambiado.
+    ENV["KUBO_BLIND_INDEX_KEY"] = "c" * 64
+    resumen = FieldKeyRotation.call
+
+    assert_operator resumen[:rotated], :>=, 1
+    assert_equal 0, resumen[:unreadable]
+
+    con_negocio(@tenant) do
+      assert_equal cliente.id, Customer.find_by_document(@tenant, "1098765432")&.id
+    end
+  ensure
+    ENV["KUBO_BLIND_INDEX_KEY"] = "b" * 64
+  end
+
   private
 
   def crear_cliente(tenant, documento, telefono: nil)

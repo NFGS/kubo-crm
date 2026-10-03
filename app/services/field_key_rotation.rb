@@ -32,11 +32,23 @@ class FieldKeyRotation
       pendientes = FIELDS.filter_map do |campo, columna|
         cifrado = cliente[columna]
         next if cifrado.blank?
-        next if FieldCipher.key_id_of(cifrado) == FieldCipher.current_key_id
 
         valor = FieldCipher.decrypt(cifrado)
-        resumen[:unreadable] += 1 if valor.nil?
-        [campo, valor] if valor
+        if valor.nil?
+          # No se pudo leer (llave retirada antes de tiempo o dato corrupto):
+          # no se toca y se informa. La rotacion nunca destruye un dato.
+          resumen[:unreadable] += 1
+          next
+        end
+
+        # Se re-cifra si la llave cambio y se recalcula el indice ciego si quedo
+        # viejo: cambiar KUBO_BLIND_INDEX_KEY invalida las busquedas por
+        # igualdad, y el setters del modelo lo vuelve a calcular.
+        indice_actual = cliente.public_send("#{campo}_bidx")
+        next if FieldCipher.key_id_of(cifrado) == FieldCipher.current_key_id &&
+                indice_actual == FieldCipher.blind_index(valor)
+
+        [campo, valor]
       end
 
       next if pendientes.empty?

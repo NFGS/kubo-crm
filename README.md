@@ -20,6 +20,7 @@ nivel de campo y la búsqueda sobre datos cifrados mediante índices ciegos.
 | PATCH | `/api/v1/customers/:id` | Actualizar cliente |
 | DELETE | `/api/v1/customers/:id` | Borrado lógico (`deleted_at`) |
 | GET | `/api/v1/customers/stats` | Conteos por etapa y cartera |
+| GET | `/api/v1/customers/by-document/:document` | Búsqueda exacta por documento (índice ciego) |
 | GET | `/api/v1/health` | Estado del servicio y de la base |
 
 ## Cifrado de datos personales
@@ -27,10 +28,14 @@ nivel de campo y la búsqueda sobre datos cifrados mediante índices ciegos.
 | Aspecto | Implementación |
 | --- | --- |
 | Algoritmo | AES-256-GCM (confidencialidad + autenticidad) |
-| Formato | `base64(iv ‖ tag ‖ ciphertext)` en una sola columna |
-| Búsqueda | Índice ciego HMAC-SHA256 normalizado (`document_number_bidx`) |
+| Formato | `v1:<key_id>:base64(iv ‖ tag ‖ ciphertext)`: el dato dice con qué llave se escribió |
+| Anillo | `KUBO_FIELD_ENCRYPTION_KEYS` = `id:hex,id:hex,…` con la llave nueva al frente; `KUBO_FIELD_ENCRYPTION_KEY` queda como `default` para los valores anteriores al anillo |
+| Búsqueda | Índice ciego HMAC-SHA256 normalizado (`document_number_bidx`), con su propia llave `KUBO_BLIND_INDEX_KEY` |
 | Minimización | Los listados devuelven `******432`; solo el detalle revela el dato |
-| Rotación | La clave llega por `KUBO_FIELD_ENCRYPTION_KEY` (32 bytes en hex) |
+| Rotación | `rake kubo:rotate_field_keys` re-cifra por lotes con la llave nueva y recalcula el índice ciego si su llave cambió; lo ilegible se cuenta y **nunca se destruye** (ADR-0019) |
+
+Un valor enmascarado que llegue por error en un `PATCH` se ignora: no puede
+re-cifrarse la máscara y pisar el documento real.
 
 Verificación manual:
 
@@ -59,17 +64,21 @@ customers
 ## Pruebas
 
 ```bash
-ruby test/field_cipher_test.rb    # no requiere base de datos
+./kubo-infra/scripts/crm-tests.sh
 ```
 
-Cubren: ida y vuelta del cifrado, IV aleatorio (dos cifrados difieren), detección
-de manipulación, determinismo del índice ciego y enmascarado.
+**20 pruebas**: 13 puras de cifrado (ida y vuelta, IV aleatorio, manipulación,
+índice ciego, enmascarado, anillo y valores heredados) y 7 de integración contra
+PostgreSQL real como rol de la aplicación: aislamiento RLS entre negocios,
+rotación de llaves (incluidos los valores sin prefijo), recálculo del índice
+ciego y contrato HTTP del recurso (el detalle revela; la máscara no pisa).
 
 ## Decisiones de diseño
 
-- **La identidad no se valida aquí**: llega verificada desde el API Gateway en las
-  cabeceras `X-User-Id` y `X-Tenant-Id`. El servicio solo es alcanzable en la red
-  privada de contenedores.
+- **La identidad no se autentica aquí, pero sí se valida**: llega verificada desde
+  el API Gateway en `X-User-Id` y `X-Tenant-Id`; el servicio rechaza un
+  `X-Tenant-Id` que no sea un UUID (400 `INVALID_TENANT`) y solo es alcanzable en
+  la red privada de contenedores (mTLS).
 - **Sin `default_scope`**: el filtro por negocio y por borrado lógico es explícito
   en cada consulta, para que nunca haya sorpresas ocultas. Como segunda barrera,
   **RLS está activo con `FORCE`**: el `around_action` de `ApplicationController`
