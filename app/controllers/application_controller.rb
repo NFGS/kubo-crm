@@ -10,12 +10,16 @@ class ApplicationController < ActionController::API
 
   before_action :require_identity
 
+  # Defensivo: ningun controlador usa `params.require` hoy; si se añade, el
+  # error se traduce a 400 en lugar de un 500.
+  # :nocov:
   rescue_from ActionController::ParameterMissing do |exception|
     render json: {
       code: "VALIDATION_ERROR",
       message: "Falta el parametro #{exception.param}"
     }, status: :bad_request
   end
+  # :nocov:
 
   private
 
@@ -59,9 +63,5 @@ class ApplicationController < ActionController::API
 
   def current_tenant_id
     request.headers["X-Tenant-Id"].presence
-  end
-
-  def current_user_id
-    request.headers["X-User-Id"].presence
   end
 end

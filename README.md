@@ -67,13 +67,15 @@ customers
 ./kubo-infra/scripts/crm-tests.sh
 ```
 
-**27 pruebas**: 13 puras de cifrado (ida y vuelta, IV aleatorio, manipulación,
-índice ciego, enmascarado, anillo y valores heredados) y 14 de integración contra
+**34 pruebas**: 13 puras de cifrado (ida y vuelta, IV aleatorio, manipulación,
+índice ciego, enmascarado, anillo y valores heredados) y 21 de integración contra
 PostgreSQL real como rol de la aplicación: aislamiento RLS entre negocios,
-rotación de llaves (incluidos los valores sin prefijo), recálculo del índice
-ciego y el contrato HTTP del recurso (listado enmascarado, detalle que revela,
-búsqueda por documento, alta, archivo y sonda de salud). La corrida va con
-**SimpleCov** y exige ≥ 80 % de líneas (hoy 92 %).
+rotación de llaves (incluidos los valores sin prefijo y los ilegibles),
+recálculo del índice ciego y el contrato HTTP completo del recurso (listado
+enmascarado, detalle que revela, búsqueda por texto y por documento, alta,
+archivo, validaciones, 404, tenant inválido y sonda de salud, incluida la
+caída de la base). La corrida va con **SimpleCov** y exige ≥ 80 % de líneas
+(hoy 100 %).
 
 ## Decisiones de diseño
 

@@ -141,6 +141,20 @@ class RlsAndCipherTest < ActiveSupport::TestCase
     ENV["KUBO_BLIND_INDEX_KEY"] = "b" * 64
   end
 
+  test "un valor ilegible se cuenta y no se destruye (P-29)" do
+    cliente = crear_cliente(@tenant, "1098765432")
+    con_negocio(@tenant) do
+      Customer.find(cliente.id).update_columns(document_number_encrypted: "v1:default:no-es-base64")
+    end
+
+    resumen = FieldKeyRotation.call
+
+    assert_operator resumen[:unreadable], :>=, 1
+    con_negocio(@tenant) do
+      assert_equal "v1:default:no-es-base64", Customer.find(cliente.id).document_number_encrypted
+    end
+  end
+
   private
 
   def crear_cliente(tenant, documento, telefono: nil)

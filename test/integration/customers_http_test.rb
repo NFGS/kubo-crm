@@ -94,6 +94,68 @@ class CustomersHttpTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "la sonda reporta DEGRADED si la base no responde" do
+    rota = Object.new
+    def rota.execute(*) = raise "base caida"
+
+    original = ActiveRecord::Base.method(:connection)
+    ActiveRecord::Base.define_singleton_method(:connection) { rota }
+
+    get "/api/v1/health"
+
+    assert_response :success
+    assert_equal "DEGRADED", JSON.parse(response.body)["status"]
+  ensure
+    ActiveRecord::Base.define_singleton_method(:connection, original)
+  end
+
+  test "la busqueda por texto filtra por nombre o correo" do
+    get "/api/v1/customers?q=HTTP", headers: { "X-Tenant-Id" => @tenant }
+
+    assert_response :success
+    assert_equal 1, JSON.parse(response.body)["data"].length
+
+    get "/api/v1/customers?q=no-existe", headers: { "X-Tenant-Id" => @tenant }
+    assert_equal 0, JSON.parse(response.body)["data"].length
+  end
+
+  test "crear con datos invalidos responde 422 con los campos" do
+    post "/api/v1/customers",
+         params: { name: "", stage: "CUSTOMER" },
+         headers: { "X-Tenant-Id" => @tenant },
+         as: :json
+
+    assert_response :unprocessable_entity
+    assert_equal "VALIDATION_ERROR", JSON.parse(response.body)["code"]
+  end
+
+  test "actualizar con datos invalidos responde 422" do
+    patch "/api/v1/customers/#{@customer.id}",
+          params: { stage: "BORRADO" },
+          headers: { "X-Tenant-Id" => @tenant },
+          as: :json
+
+    assert_response :unprocessable_entity
+    assert_equal "VALIDATION_ERROR", JSON.parse(response.body)["code"]
+  end
+
+  test "un cliente inexistente responde 404" do
+    get "/api/v1/customers/#{SecureRandom.uuid}", headers: { "X-Tenant-Id" => @tenant }
+
+    assert_response :not_found
+    assert_equal "CUSTOMER_NOT_FOUND", JSON.parse(response.body)["code"]
+  end
+
+  test "un negocio malformado responde 400 y sin identidad 401" do
+    get "/api/v1/customers", headers: { "X-Tenant-Id" => "no-es-uuid" }
+    assert_response :bad_request
+    assert_equal "INVALID_TENANT", JSON.parse(response.body)["code"]
+
+    get "/api/v1/customers"
+    assert_response :unauthorized
+    assert_equal "UNAUTHENTICATED", JSON.parse(response.body)["code"]
+  end
+
   private
 
   def con_negocio(tenant_id)
