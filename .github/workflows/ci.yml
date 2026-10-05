@@ -32,7 +32,7 @@ jobs:
         with:
           ruby-version: "3.4"
           bundler-cache: true
-      - name: Prepara el rol de aplicacion (no superusuario: RLS con FORCE)
+      - name: "Prepara el rol de aplicacion (no superusuario: RLS con FORCE)"
         run: |
           PGPASSWORD=kubo_root_dev psql -h localhost -U kubo_root -d postgres -v ON_ERROR_STOP=1 \
             -c "CREATE ROLE kubo_crm LOGIN PASSWORD 'kubo_crm_dev' NOSUPERUSER NOCREATEDB" \
