@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: kubo_root
+          POSTGRES_PASSWORD: kubo_root_dev
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kubo_root"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      RAILS_ENV: test
+      BUNDLE_WITHOUT: ""
+      TEST_DATABASE_URL: postgres://kubo_crm:kubo_crm_dev@localhost:5432/kubo_crm_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      - name: Prepara el rol de aplicacion (no superusuario: RLS con FORCE)
+        run: |
+          PGPASSWORD=kubo_root_dev psql -h localhost -U kubo_root -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE kubo_crm LOGIN PASSWORD 'kubo_crm_dev' NOSUPERUSER NOCREATEDB" \
+            -c "CREATE DATABASE kubo_crm_test OWNER kubo_crm ENCODING 'UTF8'"
+      - name: Pruebas (cifrado de campos + integracion con PostgreSQL real)
+        run: |
+          bundle exec rails db:migrate
+          bundle exec ruby -Itest -e "Dir[%q{test/field_cipher_test.rb}, %q{test/integration/*_test.rb}].sort.each { |archivo| require File.expand_path(archivo) }"
