@@ -1,5 +1,7 @@
 # kubo-crm
 
+> Parte del proyecto **Kubo** — [kubo-workspace](https://github.com/NFGS/kubo-workspace) (ERP + CRM autoalojable para PYMES).
+
 Servicio de clientes (CRM) de Kubo. Demuestra el cifrado de datos personales a
 nivel de campo y la búsqueda sobre datos cifrados mediante índices ciegos.
 
