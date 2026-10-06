@@ -1,5 +1,7 @@
 # kubo-crm
 
+[![CI](https://github.com/NFGS/kubo-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/NFGS/kubo-crm/actions/workflows/ci.yml)
+
 > Parte del proyecto **Kubo** — [kubo-workspace](https://github.com/NFGS/kubo-workspace) (ERP + CRM autoalojable para PYMES).
 
 Servicio de clientes (CRM) de Kubo. Demuestra el cifrado de datos personales a
